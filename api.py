@@ -244,7 +244,7 @@ class ArgumentsField(Field):
 
 class PostRequest(object):
     errorfields = []
-    context = None
+    context = {}
     store = None
 
     def __init__(self, request, ctx=None, store=None):
@@ -357,36 +357,38 @@ class MethodRequest(PostRequest):
     def getresponce(self):
         logging.info('Checking request fields validity.')
         if not self.isvalid():
-            return self.geterrorresponse(), INVALID_REQUEST
+            return self.geterrorresponse(), INVALID_REQUEST, self.context
         logging.info('Request fields validity.')
 
         logging.info('Checking authorization.')
         if not check_auth(self):
-            return ERRORS[FORBIDDEN], FORBIDDEN
+            return ERRORS[FORBIDDEN], FORBIDDEN, self.context
         logging.info('Authorization success.')
 
         logging.info('Checking method fields validity.')
         if not self.isvalid():
-            return self.geterrorresponse(), INVALID_REQUEST
+            return self.geterrorresponse(), INVALID_REQUEST, self.context
 
         # defining method
         if self.methoddict.get(self.method.value, None):
             self.methodobj = self.methoddict.get(
                     self.method.value)(self.arguments.value, self.store)
         else:
-            return ERRORS['NOT_FOUND'], NOT_FOUND
+            return ERRORS['NOT_FOUND'], NOT_FOUND, self.context
 
         # checking method fields validity
         if not self.methodobj.isvalid():
             self.errorfields += self.methodobj.errorfields
-            return self.geterrorresponse(), INVALID_REQUEST
+            return self.geterrorresponse(), INVALID_REQUEST, self.context
         logging.info('Method fields are valid.')
+
+        response = self.methodobj.getresponse(self.is_admin)
 
         # updating context
         if self.methodobj:
             self.context.update(self.methodobj.context)
 
-        return self.methodobj.getresponse(self.is_admin), OK
+        return response, OK, self.context
 
 
 def check_auth(request):
@@ -435,7 +437,7 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
             ))
             if path in self.router:
                 try:
-                    response, code = self.router[path](
+                    response, code, context = self.router[path](
                         {"body": request, "headers": self.headers},
                         context,
                         self.store
@@ -456,7 +458,6 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
                 "error": response or ERRORS.get(code, "Unknown Error"),
                 "code": code
             }
-        context.update(r)
         logging.info(context)
         self.wfile.write(json.dumps(r).encode("ascii"))
 
