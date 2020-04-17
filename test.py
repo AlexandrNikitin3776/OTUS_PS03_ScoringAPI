@@ -24,10 +24,7 @@ class TestSuite(unittest.TestCase):
         self.settings = {}
 
     def get_response(self, request):
-        return api.method_handler({
-                "body": request,
-                "headers": self.headers
-        }, self.context, self.settings)
+        return api.method_handler({"body": request, "headers": self.headers}, self.context, self.settings)
 
     def set_valid_auth(self, request):
         if request.get("login") == api.ADMIN_LOGIN:
@@ -41,21 +38,9 @@ class TestSuite(unittest.TestCase):
         self.assertEqual(api.INVALID_REQUEST, code)
 
     @cases([
-        {"account": "horns&hoofs",
-         "login": "h&f", "method":
-         "online_score",
-         "token": "",
-         "arguments": {}},
-        {"account": "horns&hoofs",
-         "login": "h&f", "method":
-         "online_score",
-         "token": "sdd",
-         "arguments": {}},
-        {"account": "horns&hoofs",
-         "login": "admin",
-         "method": "online_score",
-         "token": "",
-         "arguments": {}},
+        {"account": "horns&hoofs", "login": "h&f", "method": "online_score", "token": "", "arguments": {}},
+        {"account": "horns&hoofs", "login": "h&f", "method": "online_score", "token": "sdd", "arguments": {}},
+        {"account": "horns&hoofs", "login": "admin", "method": "online_score", "token": "", "arguments": {}},
     ])
     def test_bad_auth(self, request):
         _, code, self.context = self.get_response(request)
@@ -79,19 +64,9 @@ class TestSuite(unittest.TestCase):
         {"phone": "79175002040", "email": "stupnikovotus.ru"},
         {"phone": "79175002040", "email": "stupnikov@otus.ru", "gender": -1},
         {"phone": "79175002040", "email": "stupnikov@otus.ru", "gender": "1"},
-        {"phone": "79175002040",
-         "email": "stupnikov@otus.ru",
-         "gender": 1,
-         "birthday": "01.01.1890"},
-        {"phone": "79175002040",
-         "email": "stupnikov@otus.ru",
-         "gender": 1,
-         "birthday": "XXX"},
-        {"phone": "79175002040",
-         "email": "stupnikov@otus.ru",
-         "gender": 1,
-         "birthday": "01.01.2000",
-         "first_name": 1},
+        {"phone": "79175002040", "email": "stupnikov@otus.ru", "gender": 1, "birthday": "01.01.1890"},
+        {"phone": "79175002040", "email": "stupnikov@otus.ru", "gender": 1, "birthday": "XXX"},
+        {"phone": "79175002040", "email": "stupnikov@otus.ru", "gender": 1, "birthday": "01.01.2000", "first_name": 1},
         {"phone": "79175002040",
          "email": "stupnikov@otus.ru",
          "gender": 1,
@@ -102,10 +77,7 @@ class TestSuite(unittest.TestCase):
         {"email": "stupnikov@otus.ru", "gender": 1, "last_name": 2},
     ])
     def test_invalid_score_request(self, arguments):
-        request = {"account": "horns&hoofs",
-                   "login": "h&f",
-                   "method": "online_score",
-                   "arguments": arguments}
+        request = {"account": "horns&hoofs", "login": "h&f", "method": "online_score", "arguments": arguments}
         self.set_valid_auth(request)
         response, code, self.context = self.get_response(request)
         self.assertEqual(api.INVALID_REQUEST, code, arguments)
@@ -114,24 +86,15 @@ class TestSuite(unittest.TestCase):
     @cases([
         {"phone": "79175002040", "email": "stupnikov@otus.ru"},
         {"phone": 79175002040, "email": "stupnikov@otus.ru"},
-        {"gender": 1,
-         "birthday": "01.01.2000",
-         "first_name": "a",
-         "last_name": "b"},
+        {"gender": 1, "birthday": "01.01.2000", "first_name": "a", "last_name": "b"},
         {"gender": 0, "birthday": "01.01.2000"},
         {"gender": 2, "birthday": "01.01.2000"},
         {"first_name": "a", "last_name": "b"},
-        {"phone": "79175002040",
-         "email": "stupnikov@otus.ru",
-         "gender": 1,
-         "birthday": "01.01.2000",
+        {"phone": "79175002040", "email": "stupnikov@otus.ru", "gender": 1, "birthday": "01.01.2000",
          "first_name": "a", "last_name": "b"},
     ])
     def test_ok_score_request(self, arguments):
-        request = {"account": "horns&hoofs",
-                   "login": "h&f",
-                   "method": "online_score",
-                   "arguments": arguments}
+        request = {"account": "horns&hoofs", "login": "h&f", "method": "online_score", "arguments": arguments}
         self.set_valid_auth(request)
         response, code, self.context = self.get_response(request)
         self.assertEqual(api.OK, code, arguments)
@@ -141,10 +104,7 @@ class TestSuite(unittest.TestCase):
 
     def test_ok_score_admin_request(self):
         arguments = {"phone": "79175002040", "email": "stupnikov@otus.ru"}
-        request = {"account": "horns&hoofs",
-                   "login": "admin",
-                   "method": "online_score",
-                   "arguments": arguments}
+        request = {"account": "horns&hoofs", "login": "admin", "method": "online_score", "arguments": arguments}
         self.set_valid_auth(request)
         response, code, self.context = self.get_response(request)
         self.assertEqual(api.OK, code)
@@ -160,10 +120,7 @@ class TestSuite(unittest.TestCase):
         {"client_ids": [1, 2], "date": "XXX"},
     ])
     def test_invalid_interests_request(self, arguments):
-        request = {"account": "horns&hoofs",
-                   "login": "h&f",
-                   "method": "clients_interests",
-                   "arguments": arguments}
+        request = {"account": "horns&hoofs", "login": "h&f", "method": "clients_interests", "arguments": arguments}
         self.set_valid_auth(request)
         response, code, self.context = self.get_response(request)
         self.assertEqual(api.INVALID_REQUEST, code, arguments)
@@ -176,23 +133,15 @@ class TestSuite(unittest.TestCase):
         {"client_ids": [0]},
     ])
     def test_ok_interests_request(self, arguments):
-        request = {"account": "horns&hoofs",
-                   "login": "h&f",
-                   "method": "clients_interests",
-                   "arguments": arguments}
+        request = {"account": "horns&hoofs", "login": "h&f", "method": "clients_interests", "arguments": arguments}
         self.set_valid_auth(request)
         response, code, self.context = self.get_response(request)
         self.assertEqual(api.OK, code, arguments)
         self.assertEqual(len(arguments["client_ids"]), len(response))
-        self.assertTrue(all(
-                v and isinstance(v, list)
-                and all(isinstance(i, (bytes, str)) for i in v)
-                for v in response.values())
-        )
-        self.assertEqual(
-                self.context.get("nclients"),
-                len(arguments["client_ids"])
-        )
+        self.assertTrue(all(v and isinstance(v, list) and all(isinstance(i, (bytes, str)) for i in v)
+                            for v in response.values())
+                        )
+        self.assertEqual(self.context.get("nclients"), len(arguments["client_ids"]))
 
 
 if __name__ == "__main__":
