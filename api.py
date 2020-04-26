@@ -12,7 +12,6 @@ from optparse import OptionParser
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 import re
-import collections
 
 import scoring
 
@@ -42,8 +41,6 @@ GENDERS = {
     FEMALE: "female",
 }
 
-Validity = collections.namedtuple("Validity", "isvalid error")
-
 
 class Field(object):
     def __init__(self, required=False, nullable=False):
@@ -60,29 +57,27 @@ class Field(object):
 
         Returns
         -------
-        namedtuple Validity(isvalid, error)
-            isvalid - boolean, value is field valid
-            error  - string, validation error
+            boolean, value is field valid
+            raises ValueError if string is invalid with error message
         '''
-        self.valid = Validity(None, None)
+        self.valid = None
 
         # Check if field required
         if self.value is None:
             if self.required:
-                self.valid = Validity(False, "Required field is None.")
-                return self.valid
+                # self.valid = Validity(False, "Required field is None.")
+                raise ValueError('Required field is None.')
             else:
-                self.valid = Validity(True, None)
+                self.valid = True
                 return self.valid
 
         # Check if field nullable
         if self.isempty():
             if self.nullable:
-                self.valid = Validity(True, None)
+                self.valid = True
                 return self.valid
             else:
-                self.valid = Validity(False, "Not nullable field is empty.")
-                return self.valid
+                raise ValueError("Not nullable field is empty.")
 
         # Check if field is fieldtype type
         if not isinstance(self.value, fieldtype):
@@ -90,10 +85,9 @@ class Field(object):
                 sfieldtype = " or ".join([f.__name__ for f in fieldtype])
             else:
                 sfieldtype = fieldtype.__name__
-            self.valid = Validity(False, "Field must be %s type." % sfieldtype)
-            return self.valid
+            raise TypeError(f"Field must be {sfieldtype} type.")
 
-        return Validity(True, None)
+        return True
 
     def isempty(self):
         return not self.value
@@ -107,12 +101,12 @@ class CharField(Field):
 class EmailField(CharField):
     def isvalid(self):
         super().isvalid()
-        if self.valid.isvalid is None:
+        if self.valid is None:
             # Check if field contains @
             if '@' in self.value:
-                return Validity(True, None)
+                return True
             else:
-                self.valid = Validity(False, "Field must contain '@'.")
+                raise ValueError("Field must contain '@'.")
         return self.valid
 
 
@@ -121,37 +115,37 @@ class PhoneField(Field):
 
     def isvalid(self):
         super().isvalid(fieldtype=(str, int))
-        if self.valid.isvalid is None:
+        if self.valid is None:
             # Check if field starts with '7' and 11 digits length
             if not re.match(r'^7\d{10}$', str(self.value)):
-                self.valid = Validity(False, "Field must start with '7' and must be 11 digits length.")
+                raise ValueError("Field must start with '7' and must be 11 digits length.")
             else:
-                return Validity(True, None)
+                return True
         return self.valid
 
 
 class DateField(Field):
     def isvalid(self):
         super().isvalid(fieldtype=str)
-        if self.valid.isvalid is None:
+        if self.valid is None:
             # Check if field is date
             try:
                 datetime.datetime.strptime(self.value, '%d.%m.%Y')
-                return Validity(True, None)
+                return True
             except ValueError:
-                self.valid = Validity(False, "Field must be date in DD.MM.YYYY format.")
+                raise ValueError("Field must be date in DD.MM.YYYY format.")
         return self.valid
 
 
 class BirthDayField(DateField):
     def isvalid(self):
         super().isvalid()
-        if self.valid.isvalid is None:
+        if self.valid is None:
             # Check if age is less than 70
             if self.age <= 70:
-                return Validity(True, None)
+                return True
             else:
-                self.valid = Validity(False, "Age in field must be less than 70 years.")
+                raise ValueError("Age in field must be less than 70 years.")
         return self.valid
 
     @property
@@ -166,12 +160,12 @@ class BirthDayField(DateField):
 class GenderField(Field):
     def isvalid(self):
         super().isvalid(fieldtype=int)
-        if self.valid.isvalid is None:
+        if self.valid is None:
             # Check if field is 0, 1 or 2
             if self.value in GENDERS:
-                return Validity(True, None)
+                return True
             else:
-                self.valid = Validity(False, "Field must be 0, 1 or 2.")
+                raise ValueError("Field must be 0, 1 or 2.")
         return self.valid
 
     def isempty(self):
@@ -184,14 +178,14 @@ class GenderField(Field):
 class ClientIDsField(Field):
     def isvalid(self):
         super().isvalid(fieldtype=(list, tuple))
-        if self.valid.isvalid is None:
+        if self.valid is None:
             # Check if each list item is int type
             valueitemisint = map(lambda z: isinstance(z, int), self.value)
             allvaluesisint = functools.reduce(lambda x, y: x and y, valueitemisint)
             if allvaluesisint:
-                return Validity(True, None)
+                return True
             else:
-                self.valid = Validity(False, "Field must be an integer array.")
+                raise TypeError("Field must be an integer array.")
         return self.valid
 
 
@@ -200,37 +194,38 @@ class ArgumentsField(Field):
         return super().isvalid(fieldtype=dict)
 
 
-class Request(object):
+class MetaRequest(type):
+    '''
+    Creates fields attribute as tuple with the Field type class attributes
+    '''
+    def __new__(cls, name, bases, body):
+        body['fields'] = tuple(atr for atr in body if isinstance(body.get(atr), Field))
+        return super().__new__(cls, name, bases, body)
+
+
+class Request(metaclass=MetaRequest):
     context = {}
     store = None
 
     def __init__(self, request, ctx=None, store=None):
-        for atr in dir(self):
-            if isinstance(getattr(self, atr), Field):
-                getattr(self, atr).value = request.get(atr, None)
+        for atr in self.fields:
+            getattr(self, atr).value = request.get(atr, None)
         self.context = ctx
         self.store = store
 
     def isvalid(self):
         self.errorfields = []
-        for atr in dir(self):
-            if isinstance(getattr(self, atr), Field):
-                valid, error = getattr(self, atr).isvalid()
-                if not valid:
-                    self.errorfields.append((atr, error))
+        for atr in self.fields:
+            try:
+                getattr(self, atr).isvalid()
+            except (ValueError, TypeError) as error:
+                self.errorfields.append((atr, error))
         return not self.errorfields
 
 
 class ClientsInterestsRequest(Request):
     client_ids = ClientIDsField(required=True, nullable=False)
     date = DateField(required=False, nullable=True)
-
-    def getresponse(self, *args):
-        result = {}
-        for i in self.client_ids.value:
-            result[str(i)] = scoring.get_interests(store=None, cid=i)
-        self.context.update({'nclients': len(self.client_ids.value)})
-        return result
 
 
 class OnlineScoreRequest(Request):
@@ -254,28 +249,6 @@ class OnlineScoreRequest(Request):
                     self.errorfields.append('"In request must be one pair with nonempty values."')
         return False
 
-    def getresponse(self, is_admin, *args):
-        # Context update
-        ctx = {'has': []}
-        for atr in dir(self):
-            if isinstance(getattr(self, atr), Field):
-                if not getattr(self, atr).isempty():
-                    ctx['has'].append(atr)
-        self.context.update(ctx)
-
-        if is_admin:
-            return {"score": 42}
-
-        return {"score": scoring.get_score(
-                store=None,
-                phone=self.phone.value,
-                email=self.email.value,
-                birthday=self.birthday.value,
-                gender=self.gender.value,
-                first_name=self.first_name.value,
-                last_name=self.last_name.value
-                )}
-
 
 class MethodRequest(Request):
     account = CharField(required=False, nullable=True)
@@ -284,23 +257,9 @@ class MethodRequest(Request):
     arguments = ArgumentsField(required=True, nullable=True)
     method = CharField(required=True, nullable=False)
 
-    methoddict = {
-        'online_score': OnlineScoreRequest,
-        'clients_interests': ClientsInterestsRequest
-    }
-
-    def __init__(self, request, ctx, store):
-        super().__init__(request['body'], ctx, store)
-
     @property
     def is_admin(self):
         return self.login.value == ADMIN_LOGIN
-
-    def getmethod(self):
-        # Metod definition
-        handler = self.methoddict.get(self.method.value)
-        if handler:
-            return handler(self.arguments.value, self.context, self.store)
 
 
 def check_auth(request):
@@ -314,32 +273,80 @@ def check_auth(request):
     return False
 
 
+class OnlineScoreHandler(object):
+    def getresponse(self, request, is_admin, context, store):
+        requestobj = OnlineScoreRequest(request)
+        logging.info("Method fields validation.")
+        if not requestobj.isvalid():
+            return requestobj.errorfields, INVALID_REQUEST
+        logging.info('Method fields are valid.')
+
+        logging.info("Context update.")
+        ctx = {'has': []}
+        for atr in requestobj.fields:
+            if not getattr(requestobj, atr).isempty():
+                ctx['has'].append(atr)
+        context.update(ctx)
+
+        logging.info('Getting response.')
+        if is_admin:
+            return {"score": 42}, OK
+
+        return {"score": scoring.get_score(
+                store=None,
+                phone=requestobj.phone.value,
+                email=requestobj.email.value,
+                birthday=requestobj.birthday.value,
+                gender=requestobj.gender.value,
+                first_name=requestobj.first_name.value,
+                last_name=requestobj.last_name.value
+                )}, OK
+
+
+class ClientsInterestsHandler(object):
+    def getresponse(self, request, is_admin, context, store):
+        requestobj = ClientsInterestsRequest(request)
+        logging.info("Method fields validation.")
+        if not requestobj.isvalid():
+            return requestobj.errorfields, INVALID_REQUEST
+        logging.info('Method fields are valid.')
+
+        logging.info("Context update.")
+        context.update({'nclients': len(requestobj.client_ids.value)})
+
+        logging.info('Getting response.')
+        result = {}
+        for i in requestobj.client_ids.value:
+            result[str(i)] = scoring.get_interests(store=None, cid=i)
+        return result, OK
+
+
 def method_handler(request, ctx, store):
+    methoddict = {
+        'online_score': OnlineScoreHandler,
+        'clients_interests': ClientsInterestsHandler
+    }
+
     # Request handler
-    mrequest = MethodRequest(request, ctx, store)
+    mrequest = MethodRequest(request['body'], ctx, store)
 
     logging.info("Request fields validation.")
     if not mrequest.isvalid():
-        return mrequest.errorfields, INVALID_REQUEST, mrequest.context
+        return mrequest.errorfields, INVALID_REQUEST
     logging.info('Request fields are valid.')
 
     logging.info('Authorization.')
     if not check_auth(mrequest):
-        return "Authorization failed.", FORBIDDEN, mrequest.context
+        return "Authorization failed.", FORBIDDEN
     logging.info('Authorization success.')
 
     # Method handler
-    method = mrequest.getmethod()
-    if method is None:
-        return "Method '%s' isn't found." % mrequest.method.value, NOT_FOUND, mrequest.context
+    if mrequest.method.value in methoddict:
+        method = methoddict.get(mrequest.method.value)()
+    else:
+        return f"Method '{mrequest.method.value}' isn't found.", NOT_FOUND
 
-    # checking method fields validity
-    logging.info("Method fields validation.")
-    if not method.isvalid():
-        return method.errorfields, INVALID_REQUEST, method.context
-    logging.info('Method fields are valid.')
-
-    return method.getresponse(mrequest.is_admin), OK, method.context
+    return method.getresponse(mrequest.arguments.value, mrequest.is_admin, ctx, store)
 
 
 class MainHTTPHandler(BaseHTTPRequestHandler):
@@ -364,15 +371,12 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
 
         if request:
             path = self.path.strip("/")
-            logging.info("%s: %s %s" % (self.path, request, context["request_id"]))
+            logging.info(f"{self.path}: {request} {context['request_id']}")
             if path in self.router:
                 try:
-                    response, code, context = self.router[path](
-                        {"body": request, "headers": self.headers},
-                        context, self.store
-                    )
+                    response, code = self.router[path]({"body": request, "headers": self.headers}, context, self.store)
                 except Exception as e:
-                    logging.exception("Unexpected error: %s" % e)
+                    logging.exception(f"Unexpected error: {e}")
                     code = INTERNAL_ERROR
             else:
                 code = NOT_FOUND
@@ -384,6 +388,7 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
             r = {"response": response, "code": code}
         else:
             r = {"error": response or ERRORS.get(code, "Unknown Error"), "code": code}
+        context.update(r)
         logging.info(context)
         self.wfile.write(json.dumps(r).encode("ascii"))
 
@@ -397,7 +402,7 @@ if __name__ == "__main__":
                         datefmt='%Y.%m.%d %H:%M:%S'
                         )
     server = HTTPServer(("localhost", opts.port), MainHTTPHandler)
-    logging.info("Starting server at %s" % opts.port)
+    logging.info("Starting server at {opts.port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -34,7 +34,7 @@ class TestSuite(unittest.TestCase):
         request["token"] = hashlib.sha512(msg.encode('utf-8')).hexdigest()
 
     def test_empty_request(self):
-        _, code, self.context = self.get_response({})
+        _, code = self.get_response({})
         self.assertEqual(api.INVALID_REQUEST, code)
 
     @cases([
@@ -43,7 +43,7 @@ class TestSuite(unittest.TestCase):
         {"account": "horns&hoofs", "login": "admin", "method": "online_score", "token": "", "arguments": {}},
     ])
     def test_bad_auth(self, request):
-        _, code, self.context = self.get_response(request)
+        _, code = self.get_response(request)
         self.assertEqual(api.FORBIDDEN, code)
 
     @cases([
@@ -53,7 +53,7 @@ class TestSuite(unittest.TestCase):
     ])
     def test_invalid_method_request(self, request):
         self.set_valid_auth(request)
-        response, code, self.context = self.get_response(request)
+        response, code = self.get_response(request)
         self.assertEqual(api.INVALID_REQUEST, code)
         self.assertTrue(len(response))
 
@@ -79,7 +79,7 @@ class TestSuite(unittest.TestCase):
     def test_invalid_score_request(self, arguments):
         request = {"account": "horns&hoofs", "login": "h&f", "method": "online_score", "arguments": arguments}
         self.set_valid_auth(request)
-        response, code, self.context = self.get_response(request)
+        response, code = self.get_response(request)
         self.assertEqual(api.INVALID_REQUEST, code, arguments)
         self.assertTrue(len(response))
 
@@ -96,7 +96,7 @@ class TestSuite(unittest.TestCase):
     def test_ok_score_request(self, arguments):
         request = {"account": "horns&hoofs", "login": "h&f", "method": "online_score", "arguments": arguments}
         self.set_valid_auth(request)
-        response, code, self.context = self.get_response(request)
+        response, code = self.get_response(request)
         self.assertEqual(api.OK, code, arguments)
         score = response.get("score")
         self.assertTrue(isinstance(score, (int, float)) and score >= 0, arguments)
@@ -106,7 +106,7 @@ class TestSuite(unittest.TestCase):
         arguments = {"phone": "79175002040", "email": "stupnikov@otus.ru"}
         request = {"account": "horns&hoofs", "login": "admin", "method": "online_score", "arguments": arguments}
         self.set_valid_auth(request)
-        response, code, self.context = self.get_response(request)
+        response, code = self.get_response(request)
         self.assertEqual(api.OK, code)
         score = response.get("score")
         self.assertEqual(score, 42)
@@ -122,7 +122,7 @@ class TestSuite(unittest.TestCase):
     def test_invalid_interests_request(self, arguments):
         request = {"account": "horns&hoofs", "login": "h&f", "method": "clients_interests", "arguments": arguments}
         self.set_valid_auth(request)
-        response, code, self.context = self.get_response(request)
+        response, code = self.get_response(request)
         self.assertEqual(api.INVALID_REQUEST, code, arguments)
         self.assertTrue(len(response))
 
@@ -135,7 +135,7 @@ class TestSuite(unittest.TestCase):
     def test_ok_interests_request(self, arguments):
         request = {"account": "horns&hoofs", "login": "h&f", "method": "clients_interests", "arguments": arguments}
         self.set_valid_auth(request)
-        response, code, self.context = self.get_response(request)
+        response, code = self.get_response(request)
         self.assertEqual(api.OK, code, arguments)
         self.assertEqual(len(arguments["client_ids"]), len(response))
         self.assertTrue(all(v and isinstance(v, list) and all(isinstance(i, (bytes, str)) for i in v)
