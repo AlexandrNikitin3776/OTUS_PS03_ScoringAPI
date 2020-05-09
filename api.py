@@ -49,25 +49,35 @@ class Field(object):
         self.value = None
 
     def isvalid(self, fieldtype=type(None)):
+        '''
+        Parameters
+        ----------
+        fieldtype : class name, optional
+            Type of field. The default is type(None).
+
+        Returns
+        -------
+            boolean, value is field valid
+            raises ValueError if string is invalid with error message
+        '''
+        self.valid = None
+
         # Check if field required
         if self.value is None:
             if self.required:
-                logging.error(
-                    "Required field '%s' is None." % type(self).__name__
-                )
-                return False
+                # self.valid = Validity(False, "Required field is None.")
+                raise ValueError('Required field is None.')
             else:
-                return True
+                self.valid = True
+                return self.valid
 
         # Check if field nullable
         if self.isempty():
             if self.nullable:
-                return True
+                self.valid = True
+                return self.valid
             else:
-                logging.error(
-                    "Not nullable field '%s' is empty." % type(self).__name__
-                )
-                return False
+                raise ValueError("Not nullable field is empty.")
 
         # Check if field is fieldtype type
         if not isinstance(self.value, fieldtype):
@@ -75,110 +85,68 @@ class Field(object):
                 sfieldtype = " or ".join([f.__name__ for f in fieldtype])
             else:
                 sfieldtype = fieldtype.__name__
-            logging.error(
-                "Field '%s' = %s must be %s." % (
-                    type(self).__name__,
-                    self.value,
-                    sfieldtype
-                )
-            )
-            return False
+            raise TypeError(f"Field must be {sfieldtype} type.")
+
+        return True
 
     def isempty(self):
         return not self.value
 
 
 class CharField(Field):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def isvalid(self):
-        validity = super().isvalid(fieldtype=str)
-        if validity is None:
-            return True
-        return validity
+        return super().isvalid(fieldtype=str)
 
 
-class EmailField(Field):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+class EmailField(CharField):
     def isvalid(self):
-        validity = super().isvalid(fieldtype=str)
-        if validity is None:
+        super().isvalid()
+        if self.valid is None:
+            # Check if field contains @
             if '@' in self.value:
                 return True
             else:
-                logging.error(
-                    "Field '%s' must contain '@'." % type(self).__name__
-                )
-            return False
-        return validity
+                raise ValueError("Field must contain '@'.")
+        return self.valid
 
 
 class PhoneField(Field):
     rule = re.compile(r'^7\d{10}$')
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def isvalid(self):
-        validity = super().isvalid(fieldtype=(str, int))
-        if validity is None:
+        super().isvalid(fieldtype=(str, int))
+        if self.valid is None:
+            # Check if field starts with '7' and 11 digits length
             if not re.match(r'^7\d{10}$', str(self.value)):
-                logging.error(
-                    "Field '%s' must start with '7' and "
-                    "must be 11 digits length." % type(self).__name__
-                )
-                return False
+                raise ValueError("Field must start with '7' and must be 11 digits length.")
             else:
                 return True
-        return validity
+        return self.valid
 
 
 class DateField(Field):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def isvalid(self):
-        validity = super().isvalid(fieldtype=str)
-        if validity is None:
+        super().isvalid(fieldtype=str)
+        if self.valid is None:
+            # Check if field is date
             try:
                 datetime.datetime.strptime(self.value, '%d.%m.%Y')
+                return True
             except ValueError:
-                logging.error(
-                    "Field '%s' must be date in DD.MM.YYYY format."
-                    % type(self).__name__
-                )
-                return False
-            return True
-        return validity
+                raise ValueError("Field must be date in DD.MM.YYYY format.")
+        return self.valid
 
 
-class BirthDayField(Field):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+class BirthDayField(DateField):
     def isvalid(self):
-        validity = super().isvalid(fieldtype=str)
-        if validity is None:
-            try:
-                datetime.datetime.strptime(self.value, '%d.%m.%Y')
-            except ValueError:
-                logging.error(
-                    "Field '%s' must be date in DD.MM.YYYY format."
-                    % type(self).__name__
-                )
-                return False
+        super().isvalid()
+        if self.valid is None:
+            # Check if age is less than 70
             if self.age <= 70:
                 return True
             else:
-                logging.error(
-                    "Age in field '%s' must be less than 70 years."
-                    % type(self).__name__
-                )
-                return False
-        return validity
+                raise ValueError("Age in field must be less than 70 years.")
+        return self.valid
 
     @property
     def age(self):
@@ -190,101 +158,77 @@ class BirthDayField(Field):
 
 
 class GenderField(Field):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def isvalid(self):
-        validity = super().isvalid(fieldtype=int)
-        if validity is None:
+        super().isvalid(fieldtype=int)
+        if self.valid is None:
+            # Check if field is 0, 1 or 2
             if self.value in GENDERS:
                 return True
             else:
-                logging.error(
-                    "Field '%s' must be 0, 1 or 2." % type(self).__name__
-                )
-                return False
-        return validity
+                raise ValueError("Field must be 0, 1 or 2.")
+        return self.valid
 
     def isempty(self):
+        # 0 is not empty value
         if self.value == 0:
             return False
         return super().isempty()
 
 
 class ClientIDsField(Field):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def isvalid(self):
-        validity = super().isvalid(fieldtype=(list, tuple))
-        if validity is None:
-            if functools.reduce(
-                lambda x, y: x and y,
-                map(lambda z: isinstance(z, int), self.value)
-            ):
+        super().isvalid(fieldtype=(list, tuple))
+        if self.valid is None:
+            # Check if each list item is int type
+            valueitemisint = map(lambda z: isinstance(z, int), self.value)
+            allvaluesisint = functools.reduce(lambda x, y: x and y, valueitemisint)
+            if allvaluesisint:
                 return True
             else:
-                logging.error(
-                    "Field '%s' must integer array." % type(self).__name__
-                )
-                return False
-        return validity
+                raise TypeError("Field must be an integer array.")
+        return self.valid
 
 
 class ArgumentsField(Field):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def isvalid(self):
-        validity = super().isvalid(fieldtype=dict)
-        if validity is None:
-            return True
-        return validity
+        return super().isvalid(fieldtype=dict)
 
 
-class PostRequest(object):
-    errorfields = []
-    context = None
+class MetaRequest(type):
+    '''
+    Creates fields attribute as tuple with the Field type class attributes
+    '''
+    def __new__(cls, name, bases, body):
+        body['fields'] = tuple(atr for atr in body if isinstance(body.get(atr), Field))
+        return super().__new__(cls, name, bases, body)
+
+
+class Request(metaclass=MetaRequest):
+    context = {}
     store = None
 
     def __init__(self, request, ctx=None, store=None):
-        for atr in dir(self):
-            if isinstance(getattr(self, atr), Field):
-                getattr(self, atr).value = request.get(atr, None)
+        for atr in self.fields:
+            getattr(self, atr).value = request.get(atr, None)
         self.context = ctx
         self.store = store
 
     def isvalid(self):
         self.errorfields = []
-        for atr in dir(self):
-            if isinstance(getattr(self, atr), Field):
-                if not getattr(self, atr).isvalid():
-                    self.errorfields.append(atr)
+        for atr in self.fields:
+            try:
+                getattr(self, atr).isvalid()
+            except (ValueError, TypeError) as error:
+                self.errorfields.append((atr, error))
         return not self.errorfields
 
-    def geterrorresponse(self):
-        if len(self.errorfields) > 1:
-            return "Fields " + ", ".join(self.errorfields) + " are invalid."
-        if len(self.errorfields) == 1:
-            return "Field " + self.errorfields[0] + " is invalid."
 
-
-class ClientsInterestsRequest(PostRequest):
+class ClientsInterestsRequest(Request):
     client_ids = ClientIDsField(required=True, nullable=False)
     date = DateField(required=False, nullable=True)
 
-    def getresponse(self, is_admin):
-        result = {}
-        for i in self.client_ids.value:
-            result[str(i)] = scoring.get_interests(
-                    store=None,
-                    cid=i
-            )
-        self.context = {'nclients': len(self.client_ids.value)}
-        return result
 
-
-class OnlineScoreRequest(PostRequest):
+class OnlineScoreRequest(Request):
     first_name = CharField(required=False, nullable=True)
     last_name = CharField(required=False, nullable=True)
     email = EmailField(required=False, nullable=True)
@@ -299,94 +243,23 @@ class OnlineScoreRequest(PostRequest):
     def isvalid(self):
         if super().isvalid():
             for pair in self.pairs:
-                if not getattr(self, pair[0]).isempty() \
-                        and not getattr(self, pair[1]).isempty():
+                if not getattr(self, pair[0]).isempty() and not getattr(self, pair[1]).isempty():
                     return True
                 else:
-                    logging.error(
-                        "In request %s have to be one pair with "
-                        "nonempty values." % type(self).__name__)
-                    self.errorfields.append('empty pairs')
+                    self.errorfields.append('"In request must be one pair with nonempty values."')
         return False
 
-    def geterrorresponse(self):
-        if self.errorfields == 'empty pairs':
-            return "There are not non empty field pairs."
-        return super().geterrorresponse()
 
-    def getresponse(self, is_admin):
-        self.context = {'has': []}
-        for atr in dir(self):
-            if isinstance(getattr(self, atr), Field):
-                if not getattr(self, atr).isempty():
-                    self.context['has'].append(atr)
-        if is_admin:
-            return {"score": 42}
-
-        return {"score": scoring.get_score(
-                store=None,
-                phone=self.phone.value,
-                email=self.email.value,
-                birthday=self.birthday.value,
-                gender=self.gender.value,
-                first_name=self.first_name.value,
-                last_name=self.last_name.value
-                )}
-
-
-class MethodRequest(PostRequest):
+class MethodRequest(Request):
     account = CharField(required=False, nullable=True)
     login = CharField(required=True, nullable=True)
     token = CharField(required=True, nullable=True)
     arguments = ArgumentsField(required=True, nullable=True)
     method = CharField(required=True, nullable=False)
 
-    methoddict = {
-        'online_score': OnlineScoreRequest,
-        'clients_interests': ClientsInterestsRequest
-    }
-    methodobj = None
-
-    def __init__(self, request, ctx, store):
-        super().__init__(request['body'], ctx, store)
-
     @property
     def is_admin(self):
         return self.login.value == ADMIN_LOGIN
-
-    def getresponce(self):
-        logging.info('Checking request fields validity.')
-        if not self.isvalid():
-            return self.geterrorresponse(), INVALID_REQUEST
-        logging.info('Request fields validity.')
-
-        logging.info('Checking authorization.')
-        if not check_auth(self):
-            return ERRORS[FORBIDDEN], FORBIDDEN
-        logging.info('Authorization success.')
-
-        logging.info('Checking method fields validity.')
-        if not self.isvalid():
-            return self.geterrorresponse(), INVALID_REQUEST
-
-        # defining method
-        if self.methoddict.get(self.method.value, None):
-            self.methodobj = self.methoddict.get(
-                    self.method.value)(self.arguments.value, self.store)
-        else:
-            return ERRORS['NOT_FOUND'], NOT_FOUND
-
-        # checking method fields validity
-        if not self.methodobj.isvalid():
-            self.errorfields += self.methodobj.errorfields
-            return self.geterrorresponse(), INVALID_REQUEST
-        logging.info('Method fields are valid.')
-
-        # updating context
-        if self.methodobj:
-            self.context.update(self.methodobj.context)
-
-        return self.methodobj.getresponse(self.is_admin), OK
 
 
 def check_auth(request):
@@ -400,10 +273,78 @@ def check_auth(request):
     return False
 
 
+def OnlineScoreHandler(request, is_admin, context, store):
+    requestobj = OnlineScoreRequest(request)
+    logging.info("Method fields validation.")
+    if not requestobj.isvalid():
+        return requestobj.errorfields, INVALID_REQUEST
+    logging.info('Method fields are valid.')
+
+    logging.info("Context update.")
+    ctx = {'has': []}
+    for atr in requestobj.fields:
+        if not getattr(requestobj, atr).isempty():
+            ctx['has'].append(atr)
+    context.update(ctx)
+
+    logging.info('Getting response.')
+    if is_admin:
+        return {"score": 42}, OK
+
+    return {"score": scoring.get_score(
+            store=None,
+            phone=requestobj.phone.value,
+            email=requestobj.email.value,
+            birthday=requestobj.birthday.value,
+            gender=requestobj.gender.value,
+            first_name=requestobj.first_name.value,
+            last_name=requestobj.last_name.value
+            )}, OK
+
+
+def ClientsInterestsHandler(request, is_admin, context, store):
+    requestobj = ClientsInterestsRequest(request)
+    logging.info("Method fields validation.")
+    if not requestobj.isvalid():
+        return requestobj.errorfields, INVALID_REQUEST
+    logging.info('Method fields are valid.')
+
+    logging.info("Context update.")
+    context.update({'nclients': len(requestobj.client_ids.value)})
+
+    logging.info('Getting response.')
+    result = {}
+    for i in requestobj.client_ids.value:
+        result[str(i)] = scoring.get_interests(store=None, cid=i)
+    return result, OK
+
+
 def method_handler(request, ctx, store):
-    logging.info("Producing validation.")
-    mrequest = MethodRequest(request, ctx, store)
-    return mrequest.getresponce()
+    methoddict = {
+        'online_score': OnlineScoreHandler,
+        'clients_interests': ClientsInterestsHandler
+    }
+
+    # Request handler
+    mrequest = MethodRequest(request['body'], ctx, store)
+
+    logging.info("Request fields validation.")
+    if not mrequest.isvalid():
+        return mrequest.errorfields, INVALID_REQUEST
+    logging.info('Request fields are valid.')
+
+    logging.info('Authorization.')
+    if not check_auth(mrequest):
+        return "Authorization failed.", FORBIDDEN
+    logging.info('Authorization success.')
+
+    # Method handler
+    if mrequest.method.value in methoddict:
+        method = methoddict.get(mrequest.method.value)
+    else:
+        return f"Method '{mrequest.method.value}' isn't found.", NOT_FOUND
+
+    return method(mrequest.arguments.value, mrequest.is_admin, ctx, store)
 
 
 class MainHTTPHandler(BaseHTTPRequestHandler):
@@ -428,20 +369,12 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
 
         if request:
             path = self.path.strip("/")
-            logging.info("%s: %s %s" % (
-                self.path,
-                request,
-                context["request_id"]
-            ))
+            logging.info(f"{self.path}: {request} {context['request_id']}")
             if path in self.router:
                 try:
-                    response, code = self.router[path](
-                        {"body": request, "headers": self.headers},
-                        context,
-                        self.store
-                    )
+                    response, code = self.router[path]({"body": request, "headers": self.headers}, context, self.store)
                 except Exception as e:
-                    logging.exception("Unexpected error: %s" % e)
+                    logging.exception(f"Unexpected error: {e}")
                     code = INTERNAL_ERROR
             else:
                 code = NOT_FOUND
@@ -452,10 +385,7 @@ class MainHTTPHandler(BaseHTTPRequestHandler):
         if code not in ERRORS:
             r = {"response": response, "code": code}
         else:
-            r = {
-                "error": response or ERRORS.get(code, "Unknown Error"),
-                "code": code
-            }
+            r = {"error": response or ERRORS.get(code, "Unknown Error"), "code": code}
         context.update(r)
         logging.info(context)
         self.wfile.write(json.dumps(r).encode("ascii"))
@@ -466,14 +396,11 @@ if __name__ == "__main__":
     op.add_option("-p", "--port", action="store", type=int, default=8080)
     op.add_option("-l", "--log", action="store", default=None)
     (opts, args) = op.parse_args()
-    logging.basicConfig(
-        filename=opts.log,
-        level=logging.INFO,
-        format='[%(asctime)s] %(levelname).1s %(message)s',
-        datefmt='%Y.%m.%d %H:%M:%S'
-    )
+    logging.basicConfig(filename=opts.log, level=logging.INFO, format='[%(asctime)s] %(levelname).1s %(message)s',
+                        datefmt='%Y.%m.%d %H:%M:%S'
+                        )
     server = HTTPServer(("localhost", opts.port), MainHTTPHandler)
-    logging.info("Starting server at %s" % opts.port)
+    logging.info("Starting server at {opts.port}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
