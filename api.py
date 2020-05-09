@@ -273,52 +273,50 @@ def check_auth(request):
     return False
 
 
-class OnlineScoreHandler(object):
-    def getresponse(self, request, is_admin, context, store):
-        requestobj = OnlineScoreRequest(request)
-        logging.info("Method fields validation.")
-        if not requestobj.isvalid():
-            return requestobj.errorfields, INVALID_REQUEST
-        logging.info('Method fields are valid.')
+def OnlineScoreHandler(request, is_admin, context, store):
+    requestobj = OnlineScoreRequest(request)
+    logging.info("Method fields validation.")
+    if not requestobj.isvalid():
+        return requestobj.errorfields, INVALID_REQUEST
+    logging.info('Method fields are valid.')
 
-        logging.info("Context update.")
-        ctx = {'has': []}
-        for atr in requestobj.fields:
-            if not getattr(requestobj, atr).isempty():
-                ctx['has'].append(atr)
-        context.update(ctx)
+    logging.info("Context update.")
+    ctx = {'has': []}
+    for atr in requestobj.fields:
+        if not getattr(requestobj, atr).isempty():
+            ctx['has'].append(atr)
+    context.update(ctx)
 
-        logging.info('Getting response.')
-        if is_admin:
-            return {"score": 42}, OK
+    logging.info('Getting response.')
+    if is_admin:
+        return {"score": 42}, OK
 
-        return {"score": scoring.get_score(
-                store=None,
-                phone=requestobj.phone.value,
-                email=requestobj.email.value,
-                birthday=requestobj.birthday.value,
-                gender=requestobj.gender.value,
-                first_name=requestobj.first_name.value,
-                last_name=requestobj.last_name.value
-                )}, OK
+    return {"score": scoring.get_score(
+            store=None,
+            phone=requestobj.phone.value,
+            email=requestobj.email.value,
+            birthday=requestobj.birthday.value,
+            gender=requestobj.gender.value,
+            first_name=requestobj.first_name.value,
+            last_name=requestobj.last_name.value
+            )}, OK
 
 
-class ClientsInterestsHandler(object):
-    def getresponse(self, request, is_admin, context, store):
-        requestobj = ClientsInterestsRequest(request)
-        logging.info("Method fields validation.")
-        if not requestobj.isvalid():
-            return requestobj.errorfields, INVALID_REQUEST
-        logging.info('Method fields are valid.')
+def ClientsInterestsHandler(request, is_admin, context, store):
+    requestobj = ClientsInterestsRequest(request)
+    logging.info("Method fields validation.")
+    if not requestobj.isvalid():
+        return requestobj.errorfields, INVALID_REQUEST
+    logging.info('Method fields are valid.')
 
-        logging.info("Context update.")
-        context.update({'nclients': len(requestobj.client_ids.value)})
+    logging.info("Context update.")
+    context.update({'nclients': len(requestobj.client_ids.value)})
 
-        logging.info('Getting response.')
-        result = {}
-        for i in requestobj.client_ids.value:
-            result[str(i)] = scoring.get_interests(store=None, cid=i)
-        return result, OK
+    logging.info('Getting response.')
+    result = {}
+    for i in requestobj.client_ids.value:
+        result[str(i)] = scoring.get_interests(store=None, cid=i)
+    return result, OK
 
 
 def method_handler(request, ctx, store):
@@ -342,11 +340,11 @@ def method_handler(request, ctx, store):
 
     # Method handler
     if mrequest.method.value in methoddict:
-        method = methoddict.get(mrequest.method.value)()
+        method = methoddict.get(mrequest.method.value)
     else:
         return f"Method '{mrequest.method.value}' isn't found.", NOT_FOUND
 
-    return method.getresponse(mrequest.arguments.value, mrequest.is_admin, ctx, store)
+    return method(mrequest.arguments.value, mrequest.is_admin, ctx, store)
 
 
 class MainHTTPHandler(BaseHTTPRequestHandler):
