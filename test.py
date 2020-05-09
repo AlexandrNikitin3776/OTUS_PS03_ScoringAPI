@@ -28,10 +28,11 @@ class TestSuite(unittest.TestCase):
 
     def set_valid_auth(self, request):
         if request.get("login") == api.ADMIN_LOGIN:
-            msg = datetime.datetime.now().strftime("%Y%m%d%H") + api.ADMIN_SALT
+            msg=datetime.datetime.now().strftime("%Y%m%d%H") + api.ADMIN_SALT
+            request["token"] = hashlib.sha512(msg.encode('utf-8')).hexdigest()
         else:
             msg = request.get("account", "") + request.get("login", "") + api.SALT
-        request["token"] = hashlib.sha512(msg.encode('utf-8')).hexdigest()
+            request["token"] = hashlib.sha512(msg.encode('utf-8')).hexdigest()
 
     def test_empty_request(self):
         _, code = self.get_response({})
@@ -67,12 +68,8 @@ class TestSuite(unittest.TestCase):
         {"phone": "79175002040", "email": "stupnikov@otus.ru", "gender": 1, "birthday": "01.01.1890"},
         {"phone": "79175002040", "email": "stupnikov@otus.ru", "gender": 1, "birthday": "XXX"},
         {"phone": "79175002040", "email": "stupnikov@otus.ru", "gender": 1, "birthday": "01.01.2000", "first_name": 1},
-        {"phone": "79175002040",
-         "email": "stupnikov@otus.ru",
-         "gender": 1,
-         "birthday": "01.01.2000",
-         "first_name": "s",
-         "last_name": 2},
+        {"phone": "79175002040", "email": "stupnikov@otus.ru", "gender": 1, "birthday": "01.01.2000",
+         "first_name": "s", "last_name": 2},
         {"phone": "79175002040", "birthday": "01.01.2000", "first_name": "s"},
         {"email": "stupnikov@otus.ru", "gender": 1, "last_name": 2},
     ])
@@ -127,8 +124,7 @@ class TestSuite(unittest.TestCase):
         self.assertTrue(len(response))
 
     @cases([
-        {"client_ids": [1, 2, 3],
-         "date": datetime.datetime.today().strftime("%d.%m.%Y")},
+        {"client_ids": [1, 2, 3], "date": datetime.datetime.today().strftime("%d.%m.%Y")},
         {"client_ids": [1, 2], "date": "19.07.2017"},
         {"client_ids": [0]},
     ])
@@ -139,8 +135,7 @@ class TestSuite(unittest.TestCase):
         self.assertEqual(api.OK, code, arguments)
         self.assertEqual(len(arguments["client_ids"]), len(response))
         self.assertTrue(all(v and isinstance(v, list) and all(isinstance(i, (bytes, str)) for i in v)
-                            for v in response.values())
-                        )
+                        for v in response.values()))
         self.assertEqual(self.context.get("nclients"), len(arguments["client_ids"]))
 
 
